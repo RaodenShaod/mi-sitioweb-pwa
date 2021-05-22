@@ -1,0 +1,115 @@
+Pogressive Web Apps
+->Como convertir un sitio web a una aplicacion web progresiva
+ Un avance que tuvieron los standares web han sido el soporte de los service workers en los navegadores, esa tecnologia js es la que nos permite hacer la transformacion con PWA.
+ Un sitio web presenta una opcion de añadirse al menu del dispositivo como si fuera un programa mas; esto se da por dos cosas
+ ->tiene ativado un service workers
+ ->Se depliega por el protocolo seguro, https
+ Podemos investigar mas sobre ellas, desde la inspeccion de elementos en la pestaña applications; alli se puede ver el manifiesto de la aplicacion(es un archivo json) y la activiacion del service workers
+
+ *Crearemos una pequeña landing page
+ Las PWA no tienen lenguajes del lado del servidor (PHP-Python-Ruby)
+ Las pruebas se ejecutaran en un servidor, los service workers funcionan en el protocolo https y en el localhost
+ Creamos una estructura base en la carpeta del proyecto con index.html, style.css, script.js, carpeta images
+ DEsarrollamos el html con fuentes de google.fonts, fontawsome, y su estructura sera
+ header>h1>img>p+nav>a*3
+ main>iframe
+ pegamos el css y lo analizamos
+ 
+ *Ahora analizaremos los requisitos para que un sitio sea una PWA
+ Necesitamos los meta para que el sitio se vea bien en los moviles
+ Ademas de ellos debemos crear un archivo en la raiz llamaod manifest.json es un standard
+ En el manifest van las reglas, "orientation":"portrait"
+ portrait->Vertical
+ lansquet->horizontal
+ "display":"standalone" (browser, se vera toda la interfaz del movil incluido la barra de navegacion del navegador. con standalone no se ve la direccion y parece mas un programa nativo)
+ Para ver el manifiesto en accion debemos ir a application>manifest
+
+ *Registrando el service workers
+ Usaremos un sitio recomendado para desarrolladores donde podemos ver la aceptacion de los standares en general -> https://caniuse.com
+ Un service workers no es mas que un archivo js que corre en segundo plano; lo que si debemos de llamarlo desde un archivo en este caso script.js; en el haremos una validacion de soporte de serviceWorkers
+ if('serviceWorker' in navigator){
+     //si devuelve true soporta entonces entramos
+     navigator.serviceWorker.register('./sw.js') -> esta linea lo que hace es registrar y devolvernos una promesa, recuerda que las promesas son una estructura de programacion asyncrona
+     Paso siguiente hacemos los siguiente
+     .then(reg=>console.log("Registro de SW exitoso!!", reg))
+    .catch(err=>console.warn("Error al intentar registrar el ServiceWorker", err))
+ }
+
+En el arhivo sw.js es donde tiene toda la magia para ello; Primero debemos asignar un nombre a la version de nuestro cache, las PWA nos permite guardar en cache los recursos estaticos que no cambiaran en nuestra aplicacion y se pueden guardar en el disco duro del usuario, adicionalmente PWA tiene el API de sincronizacion en segundo plano, la capacidad de lanzar notificaciones push tambien; pero esto es mas avanzado y no aplica para este ejercicio hasta aca nos alcanza con el manifest.json y con el registro del service worker
+Fijate como nombramos el cache
+;
+//asignar un nombre y versión al cache
+const CACHE_NAME = 'v1_cache_programador_fitness',
+  urlsToCache = [
+    './',
+    'https://fonts.googleapis.com/css?family=Raleway:400,700',
+    'https://fonts.gstatic.com/s/raleway/v12/1Ptrg8zYS_SKggPNwJYtWqZPAA.woff2',
+    'https://use.fontawesome.com/releases/v5.0.7/css/all.css',
+    'https://use.fontawesome.com/releases/v5.0.6/webfonts/fa-brands-400.woff2',
+    './style.css',
+    './script.js',
+    './images/ProgramadorFitness.png',
+    './images/favicon.png'
+  ]
+
+  Importante que tambien sepas que puedes cachear informacion de otro servidor.
+  Los serviceWorker tendran tres eventos muy importantes, a saber; 
+  Para hacerse referencia asi mismo el serviceWorker utiliza la palabra self, por lo tanto self.addEventListener('install',e=>{ })
+  El siguiente evento es el 'activate' self.addEventListener('activate',e=>{ este entra en accion cuando la aplicacion no tiene acceso a internet, recuperando los recursos desde la cache del navegador})
+  Y finalmente el evento 'fetch' self.addEventListener('fetch',e=>{ este evento leera el archivo desde el servidor y comparara con la version del cache que se tiene, si hay una modificacion este se podra actualizar de manera automatica})
+
+  Ahora de la siguiente manera programamos el evento 'install' 
+  primero que nada le diremos al evento que espere hasta
+  e.waitUntil()
+  dentro de este evento abriremos el cache caches.open(CACHE_NAME)
+  esto nos arrojara una promesa
+  .then(cache=>{
+      return cache.addAll(urlsToCache) adicionamos todas las direcciones que tenemos almacenadas
+    .then(()=>self.skipWaiting()) debes esperar hasta que se llene la lista
+  })
+  manejamos errores
+  .catch(err=>console.log("Fallo registro de cache", err))
+De esta manera queda terminado el evento 'install'
+
+El siguente evento es el 'active' este mecanismo se accionara cuando nos quedemos sin conexion
+primeramente delaramos una variable donde almacenaremos el cache correspondiente const cacheWhitelist=[CACHE_NAME]
+paso a seguir e.waitUntil() 
+dentro ejecutamos caches.keys() esto nos devolvera una promesa
+.then(cachesNames=>{}) dentro de la promesa haremos uso del metodo map para recorrer los cachesName
+cachesNames.map(cacheName=>{}) dentro de las llaves haremos la comprobacion
+eliminaremos lo no necesario, como hacemos esto con 
+if(cacheWhitelist.indexOf(cacheName))
+paso final en otro .then(()=>self.clients.claim()) esto nos sirve para que el SW active el cache actual y asi culminamos este evento
+
+El siguiente evento es el 'fetch'  
+Este evento consultara con los objetos del cache y verificara la existencia de una url real, entonces el evento se ejecutara un metodo llamado respondWith()
+Esto hara una busqueda de coincidencias con caches.match(e.request), esto nos devolvera una promesa, por lo tanto .then(res=>{}) y dentro de ella haremos una comparacion para ver si se puede recuperar o no
+if(res){return res} esto lo ejecutamos si recupera; en el caso de que no sea asi deberemos pedir nuevamente la peticion return fetch(e.request) con este codigo estaria funcionando!!
+quedando el codigo de la siguiente manera
+self.addEventListener('fetch',e=>{
+    //Responder ya sea con el objeto en cache o continuar la url real
+    e.respondWith(
+        caches.match(e.request)
+        .then(res=>{
+            if(res){
+                //recuperar del cache
+                return res
+            }
+            //En caso de que no se pueda recuperar del cache
+            //recuperar de la peticion a la url
+            return fetch(e.request)
+        })
+    )
+  })
+
+  
+
+
+
+
+
+
+
+
+
+
